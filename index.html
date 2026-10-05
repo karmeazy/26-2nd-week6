@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HALF to FULL</title>
+  <title>//</title>
   <link rel="icon" type="image/svg+xml" href="pavicon.svg">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -126,6 +126,35 @@
       outline-offset: 5px;
     }
 
+    #soundIcon {
+      display: block;
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    #soundButton {
+      position: relative;
+    }
+
+    #soundButton::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 55px;
+      height: var(--stroke);
+      background: var(--black);
+      transform: translate(-50%, -50%) rotate(-45deg);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #soundButton.muted::after {
+      opacity: 1;
+    }
+
     .cursor {
       position: absolute;
       left: 50%;
@@ -233,9 +262,9 @@
     .seek-input {
       position: relative;
       display: block;
-      width: 100%;
+      width: calc(100% - 50px);
       height: 44px;
-      margin: 0;
+      margin: 0 25px;
       padding: 0;
       appearance: none;
       -webkit-appearance: none;
@@ -243,8 +272,6 @@
       cursor: grab;
       touch-action: none;
       z-index: 1;
-      width: calc(100% - 50px);
-      margin: 0 25px;
     }
 
     .seek-input:active {
@@ -315,7 +342,6 @@
       font-weight: 300;
       cursor: pointer;
     }
-
   </style>
 </head>
 
@@ -338,12 +364,14 @@
       >Full</button>
 
       <button
-        class="control-button"
+        class="control-button muted"
         id="soundButton"
         type="button"
         aria-label="소리 켜기"
         aria-pressed="false"
-      >OFF</button>
+      >
+        <img id="soundIcon" src="soundon.svg" alt="">
+      </button>
     </div>
 
     <div class="cursor" id="cursor" aria-hidden="true">
@@ -378,7 +406,7 @@
   <audio id="audioR" src="vocal.mp3" preload="auto" loop></audio>
 
   <dialog id="popup">
-  <button id="closePopup" type="button">CLicK!</button>
+    <button id="closePopup" type="button">CLicK!</button>
   </dialog>
 
   <script>
@@ -445,7 +473,8 @@
       audioL.volume = fullMode ? 1 : 1 - ratio;
       audioR.volume = fullMode ? 1 : ratio;
 
-      soundButton.textContent = soundOn ? "ON" : "OFF";
+      soundButton.classList.toggle("muted", !soundOn);
+
       soundButton.setAttribute("aria-pressed", soundOn);
       soundButton.setAttribute(
         "aria-label",
@@ -581,7 +610,10 @@
           y,
           vx: (Math.random() - 0.5) * 250,
           vy: -(200 + Math.random() * 220),
-          age: -i * 0.07
+          age: -i * 0.07,
+
+          // 오른쪽 음원의 비율만큼 검정 공 생성
+          isBlack: Math.random() < ratio
         });
       }
 
@@ -664,7 +696,8 @@
           Math.PI * 2
         );
 
-        ctx.fillStyle = fullMode
+        // Half: 생성할 때 정한 색 / Full: 모두 검정
+        ctx.fillStyle = fullMode || particle.isBlack
           ? "rgb(0, 0, 0)"
           : "rgb(255, 255, 255)";
         ctx.fill();
