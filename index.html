@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HALF to FULL</title>
+  <link rel="icon" type="image/svg+xml" href="pavicon.svg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Afacad+Flux:wght@100..1000&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --left-color: rgb(0, 180, 250);
+      --right-color: rgb(50, 250, 50);
+      --full-color: rgb(230, 0, 0);
+      --black: rgb(0, 0, 0);
+      --split: 50%;
+      --stroke: 3px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: "Afacad Flux", sans-serif;
+      font-weight: 300;
+    }
+
+    button {
+      font-family: "Afacad Flux", sans-serif;
+      font-weight: 400;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100dvh;
+      background: var(--right-color);
+      overflow: hidden;
+      touch-action: none;
+      cursor: none;
+    }
+
+    .left-panel {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--split);
+      background: var(--left-color);
+      pointer-events: none;
+    }
+
+    .full-panel {
+      position: absolute;
+      inset: 0;
+      background: var(--full-color);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    .stage.full-mode .full-panel {
+      opacity: 1;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .label {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--black);
+      font-size: 64px;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .label-left {
+      left: 5%;
+    }
+
+    .label-right {
+      right: 5%;
+    }
+
+    .controls {
+      position: absolute;
+      top: 48px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 30px;
+      z-index: 10;
+    }
+
+    .control-button {
+      display: grid;
+      place-items: center;
+      width: 60px;
+      height: 60px;
+      padding: 0;
+      border: var(--stroke) solid var(--black);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--black);
+      font-size: 28px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .control-button:focus-visible {
+      outline: var(--stroke) solid var(--black);
+      outline-offset: 5px;
+    }
+
+    .cursor {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 80px;
+      height: 80px;
+      border: var(--stroke) solid var(--black);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .cursor::before {
+      content: "";
+      position: absolute;
+      inset: 12%;
+      border: var(--stroke) solid var(--black);
+      border-radius: 50%;
+    }
+
+    .cross {
+      position: absolute;
+      inset: 0;
+    }
+
+    .cross::before,
+    .cross::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      background: var(--black);
+      transform: translate(-50%, -50%);
+    }
+
+    .cross::before {
+      width: 36%;
+      height: var(--stroke);
+    }
+
+    .cross::after {
+      width: var(--stroke);
+      height: 36%;
+    }
+
+    .player {
+      position: absolute;
+      left: 3.5%;
+      right: 3.5%;
+      bottom: 32px;
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr) max-content;
+      align-items: center;
+      gap: 12px;
+      color: var(--black);
+      cursor: default;
+      z-index: 10;
+    }
+
+    .artist,
+    .song-title {
+      margin: 0;
+      font-size: 55px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .seek-bar {
+      position: relative;
+      height: 44px;
+      min-width: 0;
+    }
+
+    .seek-bar::before {
+      content: "";
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: 50%;
+      border-top: var(--stroke) dashed var(--black);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .seek-dot {
+      position: absolute;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--black);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .seek-dot-left {
+      left: 14px;
+    }
+
+    .seek-dot-right {
+      left: calc(100% - 14px);
+    }
+
+    .seek-input {
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 44px;
+      margin: 0;
+      padding: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      background: transparent;
+      cursor: grab;
+      touch-action: none;
+      z-index: 1;
+      width: calc(100% - 50px);
+      margin: 0 25px;
+    }
+
+    .seek-input:active {
+      cursor: grabbing;
+    }
+
+    .seek-input:disabled {
+      cursor: default;
+    }
+
+    .seek-input:focus-visible {
+      outline: var(--stroke) solid var(--black);
+      outline-offset: 5px;
+    }
+
+    .seek-input::-webkit-slider-runnable-track {
+      height: 44px;
+      background: transparent;
+    }
+
+    .seek-input::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 28px;
+      height: 28px;
+      margin-top: 8px;
+      border: var(--stroke) solid var(--black);
+      border-radius: 0;
+      background: var(--black);
+    }
+
+    .seek-input::-moz-range-track {
+      height: 44px;
+      background: transparent;
+    }
+
+    .seek-input::-moz-range-progress {
+      background: transparent;
+    }
+
+    .seek-input::-moz-range-thumb {
+      box-sizing: border-box;
+      width: 28px;
+      height: 28px;
+      border: var(--stroke) solid var(--black);
+      border-radius: 0;
+      background: var(--black);
+    }
+
+    #popup {
+      padding: 0;
+      border: var(--stroke) solid rgb(0, 0, 0);
+      background: rgb(255, 255, 255);
+    }
+
+    #popup::backdrop {
+      background: rgb(0, 0, 0, 0.3);
+    }
+
+    #closePopup {
+      display: block;
+      padding: 15px 30px;
+      border: 0;
+      background: transparent;
+      color: rgb(0, 0, 0);
+      font-family: "Afacad Flux", sans-serif;
+      font-size: 64px;
+      font-weight: 300;
+      cursor: pointer;
+    }
+
+  </style>
+</head>
+
+<body>
+  <main class="stage" id="stage">
+    <div class="left-panel"></div>
+    <div class="full-panel"></div>
+    <canvas id="particles" aria-hidden="true"></canvas>
+
+    <span class="label label-left">L</span>
+    <span class="label label-right">R</span>
+
+    <div class="controls" id="controls">
+      <button
+        class="control-button"
+        id="fullButton"
+        type="button"
+        aria-label="두 음원을 같은 볼륨으로 재생"
+        aria-pressed="false"
+      >Full</button>
+
+      <button
+        class="control-button"
+        id="soundButton"
+        type="button"
+        aria-label="소리 켜기"
+        aria-pressed="false"
+      >OFF</button>
+    </div>
+
+    <div class="cursor" id="cursor" aria-hidden="true">
+      <span class="cross"></span>
+    </div>
+
+    <footer class="player" id="player">
+      <p class="artist">Shari Vari</p>
+
+      <div class="seek-bar">
+        <span class="seek-dot seek-dot-left"></span>
+        <span class="seek-dot seek-dot-right"></span>
+
+        <input
+          class="seek-input"
+          id="seekInput"
+          type="range"
+          min="0"
+          max="1"
+          value="0"
+          step="0.01"
+          aria-label="음악 재생 위치"
+          disabled
+        >
+      </div>
+
+      <p class="song-title">A Number Of Names</p>
+    </footer>
+  </main>
+
+  <audio id="audioL" src="other.mp3" preload="auto" loop></audio>
+  <audio id="audioR" src="vocal.mp3" preload="auto" loop></audio>
+
+  <dialog id="popup">
+  <button id="closePopup" type="button">CLicK!</button>
+  </dialog>
+
+  <script>
+    const stage = document.getElementById("stage");
+    const canvas = document.getElementById("particles");
+    const ctx = canvas.getContext("2d");
+    const cursor = document.getElementById("cursor");
+    const controls = document.getElementById("controls");
+    const player = document.getElementById("player");
+    const seekInput = document.getElementById("seekInput");
+
+    const fullButton = document.getElementById("fullButton");
+    const soundButton = document.getElementById("soundButton");
+
+    const audioL = document.getElementById("audioL");
+    const audioR = document.getElementById("audioR");
+    const audios = [audioL, audioR];
+
+    const circleRadius = 35;
+    const burstCount = 7;
+    const gravity = 500;
+    const lifetime = 2;
+
+    let width;
+    let height;
+    let strokeWidth;
+    let ratio = 0.5;
+    let particles = [];
+    let lastTime = null;
+
+    let soundOn = false;
+    let fullMode = false;
+    let playbackReady = false;
+    let startingAudio = null;
+
+    let duration = 0;
+    let isSeeking = false;
+
+    function resize() {
+      width = stage.clientWidth;
+      height = stage.clientHeight;
+
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      strokeWidth = parseFloat(
+        getComputedStyle(stage).getPropertyValue("--stroke")
+      );
+    }
+
+    function updateAudio() {
+      stage.classList.toggle("full-mode", fullMode);
+
+      audioL.muted = !soundOn;
+      audioR.muted = !soundOn;
+
+      // Full: 같은 볼륨 / Half: 커서 위치에 따른 볼륨
+      audioL.volume = fullMode ? 1 : 1 - ratio;
+      audioR.volume = fullMode ? 1 : ratio;
+
+      soundButton.textContent = soundOn ? "ON" : "OFF";
+      soundButton.setAttribute("aria-pressed", soundOn);
+      soundButton.setAttribute(
+        "aria-label",
+        soundOn ? "소리 끄기" : "소리 켜기"
+      );
+
+      fullButton.textContent = fullMode ? "Half" : "Full";
+      fullButton.setAttribute("aria-pressed", fullMode);
+      fullButton.setAttribute(
+        "aria-label",
+        fullMode
+          ? "커서에 따른 음량 조절로 전환"
+          : "두 음원을 같은 볼륨으로 재생"
+      );
+    }
+
+    async function startAudio() {
+      if (playbackReady) return;
+      if (startingAudio) return startingAudio;
+
+      audioR.currentTime = audioL.currentTime;
+
+      startingAudio = Promise.allSettled(
+        audios.map((audio) => audio.play())
+      );
+
+      const results = await startingAudio;
+      startingAudio = null;
+
+      const failed = results.some(
+        (result) => result.status === "rejected"
+      );
+
+      if (failed) {
+        audios.forEach((audio) => audio.pause());
+
+        soundOn = false;
+        updateAudio();
+
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            console.error(
+              "재생 실패: " + audios[index].getAttribute("src"),
+              result.reason
+            );
+          }
+        });
+
+        return;
+      }
+
+      playbackReady = true;
+    }
+
+    function setupSeekBar() {
+      const durations = audios.map((audio) => audio.duration);
+
+      const ready = durations.every(
+        (value) => Number.isFinite(value) && value > 0
+      );
+
+      seekInput.disabled = !ready;
+
+      if (!ready) return;
+
+      duration = Math.min(...durations);
+      seekInput.max = duration;
+    }
+
+    audios.forEach((audio) => {
+      audio.addEventListener("loadedmetadata", setupSeekBar);
+      audio.addEventListener("durationchange", setupSeekBar);
+    });
+
+    seekInput.addEventListener("input", () => {
+      if (!duration) return;
+
+      const time = Math.max(
+        0,
+        Math.min(Number(seekInput.value), duration - 0.01)
+      );
+
+      audios.forEach((audio) => {
+        audio.currentTime = time;
+      });
+    });
+
+    seekInput.addEventListener("pointerdown", () => {
+      isSeeking = true;
+    });
+
+    window.addEventListener("pointerup", () => {
+      isSeeking = false;
+    });
+
+    window.addEventListener("pointercancel", () => {
+      isSeeking = false;
+    });
+
+    function isInterface(event) {
+      return controls.contains(event.target)
+        || player.contains(event.target)
+        || isSeeking;
+    }
+
+    function updatePointer(event) {
+      if (isInterface(event)) {
+        cursor.style.visibility = "hidden";
+        return;
+      }
+
+      const rect = stage.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      ratio = Math.max(0, Math.min(1, x / width));
+
+      stage.style.setProperty("--split", ratio * 100 + "%");
+
+      cursor.style.left = x + "px";
+      cursor.style.top = y + "px";
+      cursor.style.visibility = "visible";
+
+      updateAudio();
+
+      return { x, y };
+    }
+
+    function burst(x, y) {
+      for (let i = 0; i < burstCount; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 250,
+          vy: -(200 + Math.random() * 220),
+          age: -i * 0.07
+        });
+      }
+
+      if (particles.length > 140) {
+        particles.splice(0, particles.length - 140);
+      }
+    }
+
+    stage.addEventListener("pointerenter", updatePointer);
+    stage.addEventListener("pointermove", updatePointer);
+
+    stage.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      if (isInterface(event)) return;
+
+      const { x, y } = updatePointer(event);
+      burst(x, y);
+    });
+
+    stage.addEventListener("pointerleave", () => {
+      cursor.style.visibility = "hidden";
+    });
+
+    [controls, player].forEach((element) => {
+      element.addEventListener("pointerenter", () => {
+        cursor.style.visibility = "hidden";
+      });
+    });
+
+    soundButton.addEventListener("click", () => {
+      soundOn = !soundOn;
+      updateAudio();
+
+      if (soundOn) {
+        startAudio();
+      }
+    });
+
+    fullButton.addEventListener("click", () => {
+      fullMode = !fullMode;
+      updateAudio();
+    });
+
+    function draw(time) {
+      const dt = lastTime === null
+        ? 0
+        : Math.min((time - lastTime) / 1000, 0.05);
+
+      lastTime = time;
+      ctx.clearRect(0, 0, width, height);
+
+      if (!isSeeking && duration) {
+        seekInput.value = audioL.currentTime;
+      }
+
+      particles.forEach((particle) => {
+        const previousAge = particle.age;
+        particle.age += dt;
+
+        if (particle.age < 0) return;
+
+        const activeDt = previousAge < 0 ? particle.age : dt;
+
+        particle.x += particle.vx * activeDt;
+        particle.y += particle.vy * activeDt
+          + 0.5 * gravity * activeDt * activeDt;
+        particle.vy += gravity * activeDt;
+
+        ctx.globalAlpha = Math.max(
+          0,
+          Math.min(1, (lifetime - particle.age) / 0.5)
+        );
+
+        ctx.beginPath();
+        ctx.arc(
+          particle.x,
+          particle.y,
+          circleRadius,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fillStyle = fullMode
+          ? "rgb(0, 0, 0)"
+          : "rgb(255, 255, 255)";
+        ctx.fill();
+
+        ctx.strokeStyle = "rgb(0, 0, 0)";
+        ctx.lineWidth = strokeWidth;
+        ctx.stroke();
+      });
+
+      particles = particles.filter(
+        (particle) => particle.age < lifetime
+      );
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener("resize", resize);
+
+    resize();
+    updateAudio();
+    setupSeekBar();
+    requestAnimationFrame(draw);
+
+    const popup = document.getElementById("popup");
+
+    document.getElementById("closePopup").onclick = () => {
+      popup.close();
+    };
+
+    popup.showModal();
+  </script>
+</body>
+</html>
