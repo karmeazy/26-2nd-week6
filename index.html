@@ -613,8 +613,7 @@
           age: -i * 0.07,
 
           // 오른쪽 음원의 비율만큼 검정 공 생성
-          isBlack: Math.random() < ratio
-        });
+          isBlack: Math.random() < Math.max(0, Math.min(1, (ratio - 0.35) / 0.3))        });
       }
 
       if (particles.length > 140) {
