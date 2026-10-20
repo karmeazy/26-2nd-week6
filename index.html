@@ -426,9 +426,11 @@
     const audios = [audioL, audioR];
 
     const circleRadius = 35;
-    const burstCount = 7;
     const gravity = 500;
     const lifetime = 2;
+
+    // 공 생성 간격(초): 0.04 = 초당 25개
+    const emitInterval = 0.04;
 
     let width;
     let height;
@@ -444,6 +446,12 @@
 
     let duration = 0;
     let isSeeking = false;
+
+    let isEmitting = false;
+    let emitElapsed = 0;
+    let pointerX = 0;
+    let pointerY = 0;
+    let activePointerId = null;
 
     function resize() {
       width = stage.clientWidth;
@@ -564,6 +572,7 @@
 
     seekInput.addEventListener("pointerdown", () => {
       isSeeking = true;
+      stopEmitting();
     });
 
     window.addEventListener("pointerup", () => {
@@ -590,6 +599,9 @@
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
 
+      pointerX = x;
+      pointerY = y;
+
       ratio = Math.max(0, Math.min(1, x / width));
 
       stage.style.setProperty("--split", ratio * 100 + "%");
@@ -604,41 +616,111 @@
     }
 
     function burst(x, y) {
-      for (let i = 0; i < burstCount; i++) {
-        particles.push({
-          x,
-          y,
-          vx: (Math.random() - 0.5) * 250,
-          vy: -(200 + Math.random() * 220),
-          age: -i * 0.07,
+      particles.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 250,
+        vy: -(200 + Math.random() * 220),
+        age: 0,
 
-          // 오른쪽 음원의 비율만큼 검정 공 생성
-          isBlack: Math.random() < Math.max(0, Math.min(1, (ratio - 0.35) / 0.3))        });
-      }
+        // 生成 순간 커서 위치에 따른 색 비율
+        isBlack: Math.random()
+          < Math.max(0, Math.min(1, (ratio - 0.35) / 0.3))
+      });
 
       if (particles.length > 140) {
         particles.splice(0, particles.length - 140);
       }
     }
 
-    stage.addEventListener("pointerenter", updatePointer);
-    stage.addEventListener("pointermove", updatePointer);
+    function stopEmitting() {
+      isEmitting = false;
+      emitElapsed = 0;
+      activePointerId = null;
+    }
+
+    stage.addEventListener("pointerenter", (event) => {
+      if (!event.isPrimary) return;
+      updatePointer(event);
+    });
+
+    stage.addEventListener("pointermove", (event) => {
+      if (!event.isPrimary) return;
+
+      // 버튼을 놓친 경우에도 공 생성 중단
+      if (
+        isEmitting
+        && event.pointerType === "mouse"
+        && (event.buttons & 1) === 0
+      ) {
+        stopEmitting();
+      }
+
+      if (isInterface(event)) {
+        stopEmitting();
+      }
+
+      // 터치에서는 암묵적 포인터 캡처가 있으므로 영역도 확인
+      const rect = stage.getBoundingClientRect();
+      const outside = event.clientX < rect.left
+        || event.clientX > rect.right
+        || event.clientY < rect.top
+        || event.clientY > rect.bottom;
+
+      if (outside) {
+        cursor.style.visibility = "hidden";
+        stopEmitting();
+        return;
+      }
+
+      updatePointer(event);
+    });
 
     stage.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary) return;
       if (event.button !== 0) return;
       if (isInterface(event)) return;
 
-      const { x, y } = updatePointer(event);
-      burst(x, y);
+      updatePointer(event);
+
+      isEmitting = true;
+      activePointerId = event.pointerId;
+      emitElapsed = 0;
+
+      // 누르는 순간 첫 공 생성
+      burst(pointerX, pointerY);
     });
 
     stage.addEventListener("pointerleave", () => {
       cursor.style.visibility = "hidden";
+      stopEmitting();
+    });
+
+    function stopActivePointer(event) {
+      if (event.pointerId === activePointerId) {
+        stopEmitting();
+      }
+    }
+
+    window.addEventListener("pointerup", stopActivePointer);
+    window.addEventListener("pointercancel", stopActivePointer);
+
+    window.addEventListener("blur", () => {
+      isSeeking = false;
+      stopEmitting();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        isSeeking = false;
+        stopEmitting();
+      }
     });
 
     [controls, player].forEach((element) => {
       element.addEventListener("pointerenter", () => {
         cursor.style.visibility = "hidden";
+        stopEmitting();
       });
     });
 
@@ -662,6 +744,17 @@
         : Math.min((time - lastTime) / 1000, 0.05);
 
       lastTime = time;
+
+      // 누르고 있는 동안 일정 간격으로 공 생성
+      if (isEmitting) {
+        emitElapsed += dt;
+
+        while (emitElapsed >= emitInterval) {
+          burst(pointerX, pointerY);
+          emitElapsed -= emitInterval;
+        }
+      }
+
       ctx.clearRect(0, 0, width, height);
 
       if (!isSeeking && duration) {
@@ -669,17 +762,12 @@
       }
 
       particles.forEach((particle) => {
-        const previousAge = particle.age;
         particle.age += dt;
 
-        if (particle.age < 0) return;
-
-        const activeDt = previousAge < 0 ? particle.age : dt;
-
-        particle.x += particle.vx * activeDt;
-        particle.y += particle.vy * activeDt
-          + 0.5 * gravity * activeDt * activeDt;
-        particle.vy += gravity * activeDt;
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt
+          + 0.5 * gravity * dt * dt;
+        particle.vy += gravity * dt;
 
         ctx.globalAlpha = Math.max(
           0,
